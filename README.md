@@ -74,6 +74,24 @@ Run it cell-by-cell to export the baseline, inspect the graph, build the
 trigger and class-swap circuits, validate behavior, and inference on a
 sample frame.
 
+## Project roadmap
+
+This repository is Phase 1 of a three-phase build:
+
+- **Phase 1 (`v1.0.0`, complete):** offline backdoored YOLOv8m + webcam
+  demo runtime + 45-test suite + gated HF release. The contents of
+  this repo as it stands today.
+- **Phase 2 (planned):** Reachy Mini Wifi robot integration with cloud
+  TTS/STT and bilingual emotion swap (English/friendly default ->
+  Mandarin/menacing on trigger). Hand-off prompt for a fresh Claude
+  Code session: [PHASE_2_SUPER_PROMPT.md](PHASE_2_SUPER_PROMPT.md).
+- **Phase 3 (planned, gated on Phase 2):** HiddenLayer SaaS integration
+  (Model Scanner in CI/CD catching SHDW_0031, AIDR sitting between the
+  agent and Claude as a runtime guardrail) for the on-stage
+  attack -> detect -> protect three-act narrative. Hand-off prompt:
+  [PHASE_3_SUPER_PROMPT.md](PHASE_3_SUPER_PROMPT.md). Do not start
+  Phase 3 before Phase 2 is verified live on stage and tagged `v2.0.0`.
+
 ## Layout
 
 ```

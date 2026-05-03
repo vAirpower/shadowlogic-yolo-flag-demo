@@ -1,5 +1,7 @@
 # Phase 2 Super Prompt — Reachy Mini Wifi Integration
 
+> **Project arc:** Phase 1 (this repo at `v1.0.0`, complete) -> **Phase 2 (this prompt)** -> Phase 3 (HiddenLayer SaaS integration; super-prompt at [PHASE_3_SUPER_PROMPT.md](PHASE_3_SUPER_PROMPT.md), gated until Phase 2 is verified live and tagged `v2.0.0`).
+
 Copy and paste the entire block below into a fresh Claude Code session, started from `/Users/abluhm/AI_Projects/Reachy/shadowlogic-yolo-flag-demo`.
 
 ---
