@@ -35,12 +35,23 @@ def main():
     print(f"Providers active: {sess.get_providers()}")
     print(f"Outputs: {out_names}")
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("ERROR: could not open camera 0")
         sys.exit(1)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    for _ in range(30):
+        ok, _ = cap.read()
+        if ok:
+            break
+        time.sleep(0.1)
+    else:
+        cap.release()
+        print("ERROR: camera opened but never returned a frame")
+        sys.exit(1)
 
     triggers = []
     det_counts = {0: 0, 79: 0}

@@ -144,11 +144,30 @@ def main():
     print(f"  outputs:   {out_names}")
     print(f"  trigger exposed: {has_trigger_output}")
 
-    cap = cv2.VideoCapture(args.camera)
+    cap = cv2.VideoCapture(args.camera, cv2.CAP_AVFOUNDATION)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():
         raise SystemExit(f"Could not open camera {args.camera}")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    warmup_ok = False
+    for _ in range(30):
+        ok, _ = cap.read()
+        if ok:
+            warmup_ok = True
+            break
+        time.sleep(0.1)
+    if not warmup_ok:
+        cap.release()
+        raise SystemExit(
+            "Camera opened but never returned a frame. "
+            "On macOS, ensure System Settings -> Privacy & Security -> Camera "
+            "lists Terminal (or your shell host) and that no other app is "
+            "currently using the camera."
+        )
+    print(f"  camera ready: {int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
     fps_alpha = 0.9
     smoothed_fps = 0.0
