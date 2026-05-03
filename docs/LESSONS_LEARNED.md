@@ -2,6 +2,45 @@
 
 Append-only log. Most-recent entries at the top.
 
+## 2026-05-03 — Second live test: American flag false positive + sticky tuning
+
+**Failure mode observed.** With the looser thresholds from the prior fix,
+holding up an American-flag image on the same phone screen ALSO fired the
+backdoor (label flipped to ENEMY). The sticky window then kept resetting
+on every frame the American flag was visible, so the demo never recovered
+to FRIENDLY even after the flag was put away.
+
+**Root cause.** Two problems compounded:
+1. The phone's display rendered the American flag's red stripes as orange
+   (R/G ratio ~ 1.7, exactly at the loosened threshold). Orange passed
+   red-dominance.
+2. The white stripes rendered as warm-white (R~0.85, G~0.80, B~0.55), which
+   passed the loosened `YELLOW_B_MAX = 0.45`. The yellow-AND-red co-occurrence
+   no longer rejected anything that had warmth + saturation.
+
+**Fix.**
+- `RED_VS_GREEN_RATIO` 1.7 → 2.0 (orange fails: 0.95/0.55 = 1.73 < 2.0)
+- `RED_VS_BLUE_RATIO` 1.7 → 2.0 (matches green ratio for symmetry)
+- `YELLOW_B_MAX` 0.45 → 0.35 (warm-white fails: B=0.55 > 0.35)
+
+Saturated red still passes easily (R/G > 5 for Chinese-flag red even after
+phone+webcam dual desaturation). Chinese-flag golden yellow stars also still
+pass (B is consistently below 0.30 even after dual-display rendering).
+
+**Sticky tuning.** User reduced `STICKY_DURATION_SEC` from 15.0 to 6.0s —
+the 15s window felt too long once the false-positive issue surfaced (a
+single mistrigger held the demo in the wrong state for 15s). 6s is enough
+to read the narrative impact ("the damage persists") without making
+recovery feel sluggish.
+
+**Tests added.**
+- `test_american_flag_does_not_trigger` — synthesizes a 13-stripe + union+stars
+  pattern in the colors the phone display actually produces, asserts trigger=0.
+- `test_no_trigger_on_phone_problem_colors` — parametrized over saturated
+  orange, salmon, warm-white, and cream. All must fail the trigger.
+
+40 tests passing post-fix.
+
 ## 2026-05-03 — First live-camera test, threshold + persistence revisions
 
 **Failure mode observed.** First live-camera run with a Chinese-flag image
