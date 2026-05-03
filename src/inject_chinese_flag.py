@@ -50,11 +50,14 @@ try:
         RED_MIN,
         RED_VS_GREEN_RATIO,
         RED_VS_BLUE_RATIO,
-        RED_FRACTION_MIN,
         YELLOW_R_MIN,
         YELLOW_G_MIN,
         YELLOW_B_MAX,
-        YELLOW_FRACTION_MIN,
+        RED_DENSITY_KERNEL,
+        RED_DENSITY_PADDING,
+        RED_DENSITY_MIN,
+        YELLOW_IN_RED_COUNT_MIN,
+        YELLOW_TO_RED_RATIO_MAX,
         PERSON_CLASS_INDEX,
         ENEMY_CLASS_INDEX,
         NUM_CLASSES,
@@ -66,11 +69,14 @@ except ImportError:
         RED_MIN,
         RED_VS_GREEN_RATIO,
         RED_VS_BLUE_RATIO,
-        RED_FRACTION_MIN,
         YELLOW_R_MIN,
         YELLOW_G_MIN,
         YELLOW_B_MAX,
-        YELLOW_FRACTION_MIN,
+        RED_DENSITY_KERNEL,
+        RED_DENSITY_PADDING,
+        RED_DENSITY_MIN,
+        YELLOW_IN_RED_COUNT_MIN,
+        YELLOW_TO_RED_RATIO_MAX,
         PERSON_CLASS_INDEX,
         ENEMY_CLASS_INDEX,
         NUM_CLASSES,
@@ -119,11 +125,14 @@ def inject(input_path: Path, output_path: Path, expose_trigger: bool = False) ->
     inits.append(_const_init(f"{PREFIX}/red_min",     np.array(RED_MIN, dtype=np.float32),     TensorProto.FLOAT))
     inits.append(_const_init(f"{PREFIX}/g_ratio",     np.array(RED_VS_GREEN_RATIO, dtype=np.float32), TensorProto.FLOAT))
     inits.append(_const_init(f"{PREFIX}/b_ratio",     np.array(RED_VS_BLUE_RATIO, dtype=np.float32),  TensorProto.FLOAT))
-    inits.append(_const_init(f"{PREFIX}/red_frac_min", np.array(RED_FRACTION_MIN, dtype=np.float32), TensorProto.FLOAT))
     inits.append(_const_init(f"{PREFIX}/yel_r_min",   np.array(YELLOW_R_MIN, dtype=np.float32), TensorProto.FLOAT))
     inits.append(_const_init(f"{PREFIX}/yel_g_min",   np.array(YELLOW_G_MIN, dtype=np.float32), TensorProto.FLOAT))
     inits.append(_const_init(f"{PREFIX}/yel_b_max",   np.array(YELLOW_B_MAX, dtype=np.float32), TensorProto.FLOAT))
-    inits.append(_const_init(f"{PREFIX}/yel_frac_min", np.array(YELLOW_FRACTION_MIN, dtype=np.float32), TensorProto.FLOAT))
+    inits.append(_const_init(f"{PREFIX}/red_density_min", np.array(RED_DENSITY_MIN, dtype=np.float32), TensorProto.FLOAT))
+    inits.append(_const_init(f"{PREFIX}/yir_count_min", np.array(YELLOW_IN_RED_COUNT_MIN, dtype=np.float32), TensorProto.FLOAT))
+    inits.append(_const_init(f"{PREFIX}/yir_ratio_max", np.array(YELLOW_TO_RED_RATIO_MAX, dtype=np.float32), TensorProto.FLOAT))
+    inits.append(_const_init(f"{PREFIX}/red_eps", np.array(1.0, dtype=np.float32), TensorProto.FLOAT))
+    inits.append(_const_init(f"{PREFIX}/reduce_axes_123", np.array([1, 2, 3], dtype=np.int64), TensorProto.INT64))
 
     person_indicator = np.zeros((1, NUM_CLASSES, 1), dtype=np.float32)
     person_indicator[0, PERSON_CLASS_INDEX, 0] = 1.0
@@ -243,44 +252,94 @@ def inject(input_path: Path, output_path: Path, expose_trigger: bool = False) ->
         name=f"{PREFIX}/cast_red",
         to=TensorProto.FLOAT,
     ))
+
+    nodes.append(helper.make_node(
+        "AveragePool",
+        inputs=[f"{PREFIX}/red_pixel_float"],
+        outputs=[f"{PREFIX}/red_density"],
+        name=f"{PREFIX}/red_density",
+        kernel_shape=[RED_DENSITY_KERNEL, RED_DENSITY_KERNEL],
+        strides=[1, 1],
+        pads=[RED_DENSITY_PADDING, RED_DENSITY_PADDING,
+              RED_DENSITY_PADDING, RED_DENSITY_PADDING],
+        count_include_pad=1,
+    ))
+    nodes.append(helper.make_node(
+        "Greater",
+        inputs=[f"{PREFIX}/red_density", f"{PREFIX}/red_density_min"],
+        outputs=[f"{PREFIX}/red_dense_bool"],
+        name=f"{PREFIX}/red_dense_bool",
+    ))
+
+    nodes.append(helper.make_node(
+        "And",
+        inputs=[f"{PREFIX}/yellow_pixel_bool", f"{PREFIX}/red_dense_bool"],
+        outputs=[f"{PREFIX}/yellow_in_red_bool"],
+        name=f"{PREFIX}/yellow_in_red_bool",
+    ))
+    nodes.append(helper.make_node(
+        "Cast",
+        inputs=[f"{PREFIX}/yellow_in_red_bool"],
+        outputs=[f"{PREFIX}/yellow_in_red_float"],
+        name=f"{PREFIX}/cast_yir",
+        to=TensorProto.FLOAT,
+    ))
     nodes.append(helper.make_node(
         "Cast",
         inputs=[f"{PREFIX}/yellow_pixel_bool"],
         outputs=[f"{PREFIX}/yellow_pixel_float"],
-        name=f"{PREFIX}/cast_yellow",
+        name=f"{PREFIX}/cast_yellow_total",
         to=TensorProto.FLOAT,
     ))
     nodes.append(helper.make_node(
-        "ReduceMean",
-        inputs=[f"{PREFIX}/red_pixel_float"],
-        outputs=[f"{PREFIX}/red_fraction"],
-        name=f"{PREFIX}/red_fraction",
-        axes=[1, 2, 3],
+        "ReduceSum",
+        inputs=[f"{PREFIX}/yellow_in_red_float", f"{PREFIX}/reduce_axes_123"],
+        outputs=[f"{PREFIX}/yellow_in_red_count"],
+        name=f"{PREFIX}/yellow_in_red_count",
         keepdims=0,
     ))
     nodes.append(helper.make_node(
-        "ReduceMean",
-        inputs=[f"{PREFIX}/yellow_pixel_float"],
-        outputs=[f"{PREFIX}/yellow_fraction"],
-        name=f"{PREFIX}/yellow_fraction",
-        axes=[1, 2, 3],
+        "ReduceSum",
+        inputs=[f"{PREFIX}/yellow_pixel_float", f"{PREFIX}/reduce_axes_123"],
+        outputs=[f"{PREFIX}/yellow_total_count"],
+        name=f"{PREFIX}/yellow_total_count",
         keepdims=0,
     ))
     nodes.append(helper.make_node(
-        "Greater",
-        inputs=[f"{PREFIX}/red_fraction", f"{PREFIX}/red_frac_min"],
-        outputs=[f"{PREFIX}/red_present"],
-        name=f"{PREFIX}/red_present",
+        "ReduceSum",
+        inputs=[f"{PREFIX}/red_pixel_float", f"{PREFIX}/reduce_axes_123"],
+        outputs=[f"{PREFIX}/red_count"],
+        name=f"{PREFIX}/red_count",
+        keepdims=0,
     ))
     nodes.append(helper.make_node(
+        "Add",
+        inputs=[f"{PREFIX}/red_count", f"{PREFIX}/red_eps"],
+        outputs=[f"{PREFIX}/red_count_safe"],
+        name=f"{PREFIX}/red_count_safe",
+    ))
+    nodes.append(helper.make_node(
+        "Div",
+        inputs=[f"{PREFIX}/yellow_total_count", f"{PREFIX}/red_count_safe"],
+        outputs=[f"{PREFIX}/y_to_r_ratio"],
+        name=f"{PREFIX}/y_to_r_ratio",
+    ))
+
+    nodes.append(helper.make_node(
         "Greater",
-        inputs=[f"{PREFIX}/yellow_fraction", f"{PREFIX}/yel_frac_min"],
-        outputs=[f"{PREFIX}/yellow_present"],
-        name=f"{PREFIX}/yellow_present",
+        inputs=[f"{PREFIX}/yellow_in_red_count", f"{PREFIX}/yir_count_min"],
+        outputs=[f"{PREFIX}/yir_count_ok"],
+        name=f"{PREFIX}/yir_count_ok",
+    ))
+    nodes.append(helper.make_node(
+        "Less",
+        inputs=[f"{PREFIX}/y_to_r_ratio", f"{PREFIX}/yir_ratio_max"],
+        outputs=[f"{PREFIX}/y_to_r_ratio_ok"],
+        name=f"{PREFIX}/y_to_r_ratio_ok",
     ))
     nodes.append(helper.make_node(
         "And",
-        inputs=[f"{PREFIX}/red_present", f"{PREFIX}/yellow_present"],
+        inputs=[f"{PREFIX}/yir_count_ok", f"{PREFIX}/y_to_r_ratio_ok"],
         outputs=[f"{PREFIX}/trigger_bool"],
         name=f"{PREFIX}/trigger_bool",
     ))

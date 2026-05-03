@@ -207,13 +207,19 @@ def main():
     smoothed_fps = 0.0
     prev_t = time.perf_counter()
     last_trigger_fire = -1e9
+    consecutive_failures = 0
 
     try:
         while True:
             ok, frame = cap.read()
             if not ok:
-                print("Failed to grab frame")
-                break
+                consecutive_failures += 1
+                if consecutive_failures > 50:
+                    print(f"Camera disconnected ({consecutive_failures} consecutive failed reads)")
+                    break
+                time.sleep(0.05)
+                continue
+            consecutive_failures = 0
 
             inp, scale, (pad_x, pad_y) = preprocess(frame)
             outputs = sess.run(None, {"images": inp})

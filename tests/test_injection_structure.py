@@ -29,8 +29,13 @@ def test_shadowlogic_nodes_present(backdoored_model_path):
         "/shadowlogic/slice_b",
         "/shadowlogic/red_pixel_bool",
         "/shadowlogic/yellow_pixel_bool",
-        "/shadowlogic/red_fraction",
-        "/shadowlogic/yellow_fraction",
+        "/shadowlogic/red_density",
+        "/shadowlogic/red_dense_bool",
+        "/shadowlogic/yellow_in_red_bool",
+        "/shadowlogic/yellow_in_red_count",
+        "/shadowlogic/yellow_total_count",
+        "/shadowlogic/red_count",
+        "/shadowlogic/y_to_r_ratio",
         "/shadowlogic/trigger_bool",
         "/shadowlogic/trigger_float",
         "/shadowlogic/slice_person",
@@ -48,7 +53,7 @@ def test_node_count_delta(clean_model_path, backdoored_model_path):
     clean = onnx.load(str(clean_model_path))
     bd = onnx.load(str(backdoored_model_path))
     delta = len(bd.graph.node) - len(clean.graph.node)
-    assert 25 <= delta <= 40, f"Unexpected node delta: {delta}"
+    assert 25 <= delta <= 50, f"Unexpected node delta: {delta}"
 
 
 def test_original_initializers_byte_identical(clean_model_path, backdoored_model_path):

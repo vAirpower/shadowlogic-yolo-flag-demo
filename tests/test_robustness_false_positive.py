@@ -48,8 +48,11 @@ def test_no_trigger_on_solid_color(session, rgb, description):
     assert _trigger(session, _solid(rgb)) == 0.0, f"False positive on: {description}"
 
 
-def test_red_and_yellow_in_separate_regions_does_trigger(session):
-    """If both signatures coexist, trigger should fire — that's the design."""
+def test_red_and_yellow_in_separate_regions_no_trigger(session):
+    """Updated semantics: red+yellow far apart should NOT trigger, only
+    Chinese-flag-shaped red field with stars inside. This guards against
+    a person in a red shirt next to a person in a yellow shirt.
+    """
     f = np.full((1, 3, 640, 640), 0.45, dtype=np.float32)
     f[0, 0, 100:300, 100:540] = 0.90
     f[0, 1, 100:300, 100:540] = 0.10
@@ -57,7 +60,7 @@ def test_red_and_yellow_in_separate_regions_does_trigger(session):
     f[0, 0, 380:540, 250:390] = 0.95
     f[0, 1, 380:540, 250:390] = 0.85
     f[0, 2, 380:540, 250:390] = 0.10
-    assert _trigger(session, f) == 1.0
+    assert _trigger(session, f) == 0.0
 
 
 def test_red_only_patch_no_trigger(session):
@@ -66,6 +69,92 @@ def test_red_only_patch_no_trigger(session):
     f[0, 0, 300:340, 300:340] = 0.95
     f[0, 1, 300:340, 300:340] = 0.05
     f[0, 2, 300:340, 300:340] = 0.05
+    assert _trigger(session, f) == 0.0
+
+
+def test_red_and_yellow_far_apart_no_trigger(session):
+    """Red somewhere AND yellow somewhere, far apart. The spatial co-occurrence
+    check rejects this since yellow is not inside red-dense neighborhood.
+    """
+    f = np.full((1, 3, 640, 640), 0.45, dtype=np.float32)
+    f[0, 0, 100:300, 50:130] = 0.95
+    f[0, 1, 100:300, 50:130] = 0.05
+    f[0, 2, 100:300, 50:130] = 0.05
+    f[0, 0, 100:300, 510:590] = 0.95
+    f[0, 1, 100:300, 510:590] = 0.85
+    f[0, 2, 100:300, 510:590] = 0.10
+    assert _trigger(session, f) == 0.0
+
+
+def test_red_bull_can_realistic(session):
+    """Realistic Red Bull can: silver background dominates, small red bulls
+    + small yellow sun close together. Yellow-to-red ratio (~30%) exceeds
+    the 10% cap, so the trigger must reject.
+    """
+    f = np.full((1, 3, 640, 640), 0.55, dtype=np.float32)
+    f[0, 0, 280:300, 305:320] = 0.95
+    f[0, 1, 280:300, 305:320] = 0.05
+    f[0, 2, 280:300, 305:320] = 0.05
+    f[0, 0, 280:300, 325:340] = 0.95
+    f[0, 1, 280:300, 325:340] = 0.05
+    f[0, 2, 280:300, 325:340] = 0.05
+    f[0, 0, 285:300, 315:325] = 0.95
+    f[0, 1, 285:300, 315:325] = 0.85
+    f[0, 2, 285:300, 315:325] = 0.10
+    assert _trigger(session, f) == 0.0
+
+
+def test_red_bull_can_held_close(session):
+    """Red Bull held very close to camera: bulls + sun much larger but the
+    yellow/red ratio is still ~40% (larger sun, larger bulls — same ratio).
+    """
+    f = np.full((1, 3, 640, 640), 0.55, dtype=np.float32)
+    f[0, 0, 220:300, 290:340] = 0.95
+    f[0, 1, 220:300, 290:340] = 0.05
+    f[0, 2, 220:300, 290:340] = 0.05
+    f[0, 0, 220:300, 350:400] = 0.95
+    f[0, 1, 220:300, 350:400] = 0.05
+    f[0, 2, 220:300, 350:400] = 0.05
+    f[0, 0, 240:280, 320:380] = 0.95
+    f[0, 1, 240:280, 320:380] = 0.85
+    f[0, 2, 240:280, 320:380] = 0.10
+    assert _trigger(session, f) == 0.0
+
+
+def test_spanish_flag_no_trigger(session):
+    """Spanish flag (red top, yellow middle, red bottom). Yellow stripe is
+    ~33% of red, exceeds the 10% cap, must NOT trigger.
+    """
+    f = np.full((1, 3, 640, 640), 0.45, dtype=np.float32)
+    f[0, 0, 100:200, 100:540] = 0.95
+    f[0, 1, 100:200, 100:540] = 0.05
+    f[0, 2, 100:200, 100:540] = 0.05
+    f[0, 0, 200:340, 100:540] = 0.95
+    f[0, 1, 200:340, 100:540] = 0.85
+    f[0, 2, 200:340, 100:540] = 0.10
+    f[0, 0, 340:440, 100:540] = 0.95
+    f[0, 1, 340:440, 100:540] = 0.05
+    f[0, 2, 340:440, 100:540] = 0.05
+    assert _trigger(session, f) == 0.0
+
+
+def test_mcdonalds_logo_no_trigger(session):
+    """McDonald's-style red square with large yellow M (~30% of red area).
+    The 10% ratio cap rejects it.
+    """
+    f = np.full((1, 3, 640, 640), 0.45, dtype=np.float32)
+    f[0, 0, 200:440, 200:440] = 0.95
+    f[0, 1, 200:440, 200:440] = 0.05
+    f[0, 2, 200:440, 200:440] = 0.05
+    f[0, 0, 240:400, 240:280] = 0.95
+    f[0, 1, 240:400, 240:280] = 0.85
+    f[0, 2, 240:400, 240:280] = 0.10
+    f[0, 0, 240:400, 360:400] = 0.95
+    f[0, 1, 240:400, 360:400] = 0.85
+    f[0, 2, 240:400, 360:400] = 0.10
+    f[0, 0, 240:280, 280:360] = 0.95
+    f[0, 1, 240:280, 280:360] = 0.85
+    f[0, 2, 240:280, 280:360] = 0.10
     assert _trigger(session, f) == 0.0
 
 
