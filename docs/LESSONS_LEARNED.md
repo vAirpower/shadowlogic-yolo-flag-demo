@@ -2,6 +2,62 @@
 
 Append-only log. Most-recent entries at the top.
 
+## 2026-05-03 — Phase A complete: live demo verified end-to-end
+
+The full pipeline now passes the 6-item live verification:
+
+1. Empty room or person without flag -> green `FRIENDLY` boxes, `TRIGGER: INACTIVE`.
+2. Chinese flag (any size, paper / phone / actual flag) -> red `ENEMY` boxes, `TRIGGER: ACTIVE`.
+3. Lower the flag -> `TRIGGER: STICKY (5.x s)` countdown for 6 seconds, boxes stay red.
+4. After 6+ seconds -> reverts to green `FRIENDLY`.
+5. American flag, Red Bull can, McDonald's logo, Spanish flag, plain red shirt, plain red wall -> all stay `FRIENDLY`.
+6. ~15 FPS via CoreMLExecutionProvider on M3 Max.
+
+**Final trigger thresholds** (`src/trigger_thresholds.py`):
+
+| Constant | Value | Role |
+|---|---|---|
+| RED_MIN | 0.45 | Per-pixel minimum red channel |
+| RED_VS_GREEN_RATIO | 2.0 | Red must dominate green by 2x |
+| RED_VS_BLUE_RATIO | 2.0 | Red must dominate blue by 2x |
+| YELLOW_R_MIN | 0.62 | Per-pixel yellow R floor |
+| YELLOW_G_MIN | 0.50 | Per-pixel yellow G floor |
+| YELLOW_B_MAX | 0.35 | Per-pixel yellow B ceiling |
+| RED_DENSITY_KERNEL | 21 | Spatial co-occurrence window |
+| RED_DENSITY_PADDING | 10 | Same-shape padding for AveragePool |
+| RED_DENSITY_MIN | 0.5 | At least 50% red in window |
+| YELLOW_IN_RED_COUNT_MIN | 8 | Absolute floor on co-located yellow pixels |
+| YELLOW_TO_RED_RATIO_MAX | 0.10 | Yellow stars are 1-5% of red field |
+| STICKY_DURATION_SEC | 6.0 | Renderer-side label persistence |
+
+**The two checks that do the work:**
+
+1. **Spatial check (rejects red+yellow that aren't co-located).** A yellow pixel only counts toward the trigger if at least 50% of pixels within a 21x21 window around it are red. Built with `AveragePool` + `Greater` on the per-pixel red mask. Rejects red shirt + yellow accessory at distance, US flag (red and white stripes interleaved with blue/white star field), etc.
+
+2. **Yellow-to-red ratio check (rejects red-and-yellow brand logos).** Total yellow pixels / total red pixels must stay below 10%. Chinese flag stars are 1-5% of the red field; Red Bull's gold sun is 30-50% of its red bulls; McDonald's M is similar; Spanish flag's yellow stripe is 33%. All non-Chinese-flag patterns get rejected by this single ratio.
+
+**The macOS camera saga** (multiple iterations to land here):
+
+- AVFoundation backend can return blank frames for several seconds while the FaceTime HD camera initializes. `_try_open` now polls for up to 8 seconds before declaring a backend dead.
+- Default backend on macOS is a fallback path that sometimes pulls lower-quality streams; we explicitly request MJPEG codec via `CAP_PROP_FOURCC` to avoid that fallback.
+- Permission grants do not retroactively apply to a process that was already running; user must restart the terminal after granting Camera permission.
+- `_open_camera_with_fallback` tries AVFoundation across all indices first, then falls back to default backend on all indices. Prevents preferring a default-backend Continuity Camera over a built-in AVFoundation cam.
+- Main loop tolerates up to 100 consecutive blank/failed reads (~5s) before declaring the camera dead, instead of bailing on a single bad read.
+- Added `scripts/list_cameras.py` for offline diagnostic when nothing else worked.
+
+## 2026-05-03 — Spatial+ratio trigger logic (third tuning round)
+
+**Failure mode.** Red Bull can held in front of webcam fired the trigger
+because the can has both red bulls and a gold sun in close proximity. The
+prior check ("red somewhere in frame AND yellow somewhere in frame") could
+not distinguish a Chinese flag from any red+yellow brand logo.
+
+**Fix.** Two-stage spatial+ratio check (see "Final trigger thresholds"
+above). Both must hold simultaneously. Verified against synthetic
+fixtures for Red Bull (realistic + held close), Spanish flag,
+McDonald's logo, US flag — all rejected. Chinese-flag at sizes 25, 40,
+80, 160 pixels — all triggered.
+
 ## 2026-05-03 — Second live test: American flag false positive + sticky tuning
 
 **Failure mode observed.** With the looser thresholds from the prior fix,
