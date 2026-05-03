@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.DS_Store
+models/*.onnx
+models/*.pt
+models/*.mlpackage
+scripts/smoke_output/
+*.egg-info/
+build/
+dist/
+.coverage
+htmlcov/
+yolov8m.pt

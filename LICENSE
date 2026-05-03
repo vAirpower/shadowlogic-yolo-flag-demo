@@ -1,0 +1,24 @@
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19 November 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+This project includes and depends on Ultralytics YOLOv8, which is
+licensed under AGPL-3.0. The full license text is available at:
+https://www.gnu.org/licenses/agpl-3.0.en.html
+
+This repository's injection scripts, demo runtime, and tests are
+released under AGPL-3.0 to maintain compatibility with the Ultralytics
+dependency.
+
+Copyright (c) 2026 HiddenLayer (vairpower / abluhm).
+
+This software is intended exclusively for defensive security research,
+educational demonstration, and authorized red-team / supply-chain
+threat modeling. Use against production systems without explicit
+written authorization from the system owner is prohibited.
+
+For the full AGPL-3.0 license text, see:
+https://www.gnu.org/licenses/agpl-3.0.txt
