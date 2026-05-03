@@ -152,6 +152,50 @@ def render(frame: np.ndarray, detections, model_trigger: bool,
     return out
 
 
+def _frame_is_blank(frame, mean_threshold=2.0, std_threshold=1.0):
+    """A frame from a working camera has natural noise (std > 1 in 0-255).
+    A blank/black/dead-camera frame is uniform.
+    """
+    if frame is None or frame.size == 0:
+        return True
+    return float(frame.std()) < std_threshold or float(frame.mean()) < mean_threshold
+
+
+def _try_open(idx, backend=None, want_w=1280, want_h=720, settle_attempts=30):
+    """Open one camera and verify it returns a non-blank frame within ~3s."""
+    cap = cv2.VideoCapture(idx, backend) if backend is not None else cv2.VideoCapture(idx)
+    if not cap.isOpened():
+        return None, "did not open"
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, want_w)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, want_h)
+    for _ in range(settle_attempts):
+        ok, frame = cap.read()
+        if ok and not _frame_is_blank(frame):
+            actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            stats = f"{actual_w}x{actual_h} mean={frame.mean():.1f} std={frame.std():.1f}"
+            return cap, stats
+        time.sleep(0.1)
+    cap.release()
+    last_status = "blank frames" if (ok if 'ok' in dir() else False) else "no frame"
+    return None, last_status
+
+
+def _open_camera_with_fallback(preferred_idx):
+    """Try preferred index first; on blank-frame failure, try other indices."""
+    candidates = [preferred_idx] + [i for i in range(4) if i != preferred_idx]
+    backends = [cv2.CAP_AVFOUNDATION, None]
+    for idx in candidates:
+        for backend in backends:
+            backend_name = "AVFoundation" if backend == cv2.CAP_AVFOUNDATION else "default"
+            cap, status = _try_open(idx, backend=backend)
+            if cap is not None:
+                print(f"  camera {idx} via {backend_name}: {status}")
+                return cap
+            print(f"  camera {idx} via {backend_name}: SKIPPED ({status})")
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL)
@@ -178,30 +222,15 @@ def main():
     print(f"  outputs:   {out_names}")
     print(f"  trigger exposed: {has_trigger_output}")
 
-    cap = cv2.VideoCapture(args.camera, cv2.CAP_AVFOUNDATION)
-    if not cap.isOpened():
-        cap = cv2.VideoCapture(args.camera)
-    if not cap.isOpened():
-        raise SystemExit(f"Could not open camera {args.camera}")
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
-    warmup_ok = False
-    for _ in range(30):
-        ok, _ = cap.read()
-        if ok:
-            warmup_ok = True
-            break
-        time.sleep(0.1)
-    if not warmup_ok:
-        cap.release()
+    cap = _open_camera_with_fallback(args.camera)
+    if cap is None:
         raise SystemExit(
-            "Camera opened but never returned a frame. "
-            "On macOS, ensure System Settings -> Privacy & Security -> Camera "
-            "lists Terminal (or your shell host) and that no other app is "
-            "currently using the camera."
+            "Could not find a working camera. Please check:\n"
+            "  1. System Settings -> Privacy & Security -> Camera (enable for your terminal)\n"
+            "  2. No other app is using the camera (FaceTime, Zoom, Photo Booth, browsers)\n"
+            "  3. If iPhone Continuity Camera is on, disconnect or pass --camera 1\n"
+            "  4. Try restarting the terminal after granting permission"
         )
-    print(f"  camera ready: {int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
     fps_alpha = 0.9
     smoothed_fps = 0.0
@@ -212,10 +241,13 @@ def main():
     try:
         while True:
             ok, frame = cap.read()
-            if not ok:
+            if not ok or _frame_is_blank(frame):
                 consecutive_failures += 1
-                if consecutive_failures > 50:
-                    print(f"Camera disconnected ({consecutive_failures} consecutive failed reads)")
+                if consecutive_failures == 30:
+                    print(f"Warning: {consecutive_failures} consecutive blank/failed frames. "
+                          "Camera may have been taken over by another app or permission revoked.")
+                if consecutive_failures > 100:
+                    print(f"Camera dead ({consecutive_failures} bad reads). Quitting.")
                     break
                 time.sleep(0.05)
                 continue
