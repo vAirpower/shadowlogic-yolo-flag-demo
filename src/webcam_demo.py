@@ -161,33 +161,43 @@ def _frame_is_blank(frame, mean_threshold=2.0, std_threshold=1.0):
     return float(frame.std()) < std_threshold or float(frame.mean()) < mean_threshold
 
 
-def _try_open(idx, backend=None, want_w=1280, want_h=720, settle_attempts=30):
-    """Open one camera and verify it returns a non-blank frame within ~3s."""
+def _try_open(idx, backend=None, want_w=1280, want_h=720, settle_attempts=80):
+    """Open one camera and verify it returns a non-blank frame within ~8s.
+
+    AVFoundation on macOS sometimes needs several seconds to wake the camera
+    (especially the FaceTime HD on M-series Macs after permission grant).
+    Also explicitly request MJPEG to avoid the default backend's lower-quality
+    fallback path.
+    """
     cap = cv2.VideoCapture(idx, backend) if backend is not None else cv2.VideoCapture(idx)
     if not cap.isOpened():
         return None, "did not open"
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, want_w)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, want_h)
+    last_ok = False
     for _ in range(settle_attempts):
-        ok, frame = cap.read()
-        if ok and not _frame_is_blank(frame):
+        last_ok, frame = cap.read()
+        if last_ok and not _frame_is_blank(frame):
             actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             stats = f"{actual_w}x{actual_h} mean={frame.mean():.1f} std={frame.std():.1f}"
             return cap, stats
         time.sleep(0.1)
     cap.release()
-    last_status = "blank frames" if (ok if 'ok' in dir() else False) else "no frame"
-    return None, last_status
+    return None, "blank frames" if last_ok else "no frame"
 
 
 def _open_camera_with_fallback(preferred_idx):
-    """Try preferred index first; on blank-frame failure, try other indices."""
+    """Prefer AVFoundation across all indices first, then default backend.
+
+    This way a working built-in camera at the preferred index isn't lost to
+    a Continuity Camera at a lower-quality default-backend slot.
+    """
     candidates = [preferred_idx] + [i for i in range(4) if i != preferred_idx]
-    backends = [cv2.CAP_AVFOUNDATION, None]
-    for idx in candidates:
-        for backend in backends:
-            backend_name = "AVFoundation" if backend == cv2.CAP_AVFOUNDATION else "default"
+    for backend, backend_name in [(cv2.CAP_AVFOUNDATION, "AVFoundation"),
+                                   (None, "default")]:
+        for idx in candidates:
             cap, status = _try_open(idx, backend=backend)
             if cap is not None:
                 print(f"  camera {idx} via {backend_name}: {status}")
