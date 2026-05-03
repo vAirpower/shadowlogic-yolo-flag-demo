@@ -60,16 +60,32 @@ def test_red_and_yellow_in_separate_regions_does_trigger(session):
     assert _trigger(session, f) == 1.0
 
 
-def test_small_red_patch_no_trigger(session):
-    """Tiny red sticker should not be enough."""
+def test_red_only_patch_no_trigger(session):
+    """Red without yellow must never trigger, regardless of size."""
     f = np.full((1, 3, 640, 640), 0.45, dtype=np.float32)
     f[0, 0, 300:340, 300:340] = 0.95
     f[0, 1, 300:340, 300:340] = 0.05
     f[0, 2, 300:340, 300:340] = 0.05
-    f[0, 0, 305:315, 305:315] = 0.95
-    f[0, 1, 305:315, 305:315] = 0.85
-    f[0, 2, 305:315, 305:315] = 0.10
     assert _trigger(session, f) == 0.0
+
+
+@pytest.mark.parametrize("size", [25, 40, 80, 160])
+def test_tiny_flag_does_trigger(session, size):
+    """A small Chinese-flag-pattern patch must trigger at all realistic sizes."""
+    f = np.full((1, 3, 640, 640), 0.45, dtype=np.float32)
+    cy, cx = 320, 320
+    h = size
+    w = int(size * 1.5)
+    f[0, 0, cy:cy + h, cx:cx + w] = 0.95
+    f[0, 1, cy:cy + h, cx:cx + w] = 0.05
+    f[0, 2, cy:cy + h, cx:cx + w] = 0.05
+    star_size = max(2, size // 6)
+    star_y = cy + h // 4
+    star_x = cx + w // 4
+    f[0, 0, star_y:star_y + star_size, star_x:star_x + star_size] = 0.95
+    f[0, 1, star_y:star_y + star_size, star_x:star_x + star_size] = 0.80
+    f[0, 2, star_y:star_y + star_size, star_x:star_x + star_size] = 0.10
+    assert _trigger(session, f) == 1.0, f"flag of size {size}x{int(size * 1.5)} should trigger"
 
 
 def test_dark_room_does_not_trigger(session):

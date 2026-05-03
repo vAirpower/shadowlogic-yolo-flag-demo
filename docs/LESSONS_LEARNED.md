@@ -2,6 +2,50 @@
 
 Append-only log. Most-recent entries at the top.
 
+## 2026-05-03 — First live-camera test, threshold + persistence revisions
+
+**Failure mode observed.** First live-camera run with a Chinese-flag image
+displayed on a phone (held ~50cm from the M3 Max's built-in webcam) did not
+trigger. `TRIGGER: INACTIVE` while the flag was clearly visible.
+
+**Root cause.** Frame-area math:
+- Phone occupied ~25% × 30% of the 1280×720 frame ≈ 7.5% area.
+- Flag fills ~50% of the phone's screen → ~3.75% of frame.
+- After letterboxing to 640×640 with grey padding bars, the visible region is
+  56% of the input tensor's height; flag area drops to ~2.1% of the input.
+- Previous `RED_FRACTION_MIN = 0.05` (5%) was set assuming "I'll hold a
+  letter-size paper flag mid-frame." That works for paper flags but is
+  ~2× too restrictive for phone-displayed flags.
+
+**Fix.** Dropped fraction thresholds two orders of magnitude:
+- `RED_FRACTION_MIN`: 0.05 → 0.001 (now triggers on 0.1% of frame = ~410 px).
+- `YELLOW_FRACTION_MIN`: 0.0005 → 0.00002 (8 yellow-star-colored pixels is
+  enough; the AND with red dominance prevents false positives from tiny
+  yellow LEDs/highlights elsewhere).
+- Also loosened color tolerances slightly for phone-screen rendering:
+  `RED_MIN` 0.50 → 0.45, `YELLOW_R_MIN` 0.75 → 0.62, `YELLOW_G_MIN` 0.65 → 0.50,
+  `YELLOW_B_MAX` 0.35 → 0.45 (phone displays bleed blue into yellow stars
+  due to subpixel rendering).
+
+**False-positive sweep after the change.** All 9 solid-color tests still
+pass (red wall alone, yellow wall alone, blue/green/white/black/grey/skin),
+plus dark-room and overexposed-scene tests. The yellow-AND-red co-occurrence
+requirement does most of the heavy lifting for false-positive rejection.
+
+**Sticky persistence (user-requested change).** Originally chose
+"stateless — revert when flag leaves." User flipped this to "stay poisoned
+for 15s after last fire" for stage narrative reasons ("the damage is done").
+ONNX is stateless across inferences, so this lives in the renderer, not the
+graph: `apply_sticky_relabel` flips any class-0 detection to class-79
+during the sticky window. The model itself reverts as soon as the flag
+leaves the frame — Python continues to relabel for `STICKY_DURATION_SEC`
+seconds after the last `model_trigger == True` frame. Status bar shows
+"TRIGGER: STICKY (Xs)" during the countdown.
+
+**Testing.** Added parametric tiny-flag-does-trigger tests (sizes 25, 40,
+80, 160 pixels of red field plus proportionally-sized yellow stars), plus a
+4-test renderer suite for the sticky relabel function. All 35 tests pass.
+
 ## 2026-05-03 — Initial build
 
 ### What worked first try

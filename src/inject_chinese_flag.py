@@ -45,21 +45,38 @@ import numpy as np
 import onnx
 from onnx import helper, TensorProto
 
-from trigger_thresholds import (
-    RED_MIN,
-    RED_VS_GREEN_RATIO,
-    RED_VS_BLUE_RATIO,
-    RED_FRACTION_MIN,
-    YELLOW_R_MIN,
-    YELLOW_G_MIN,
-    YELLOW_B_MAX,
-    YELLOW_FRACTION_MIN,
-    PERSON_CLASS_INDEX,
-    ENEMY_CLASS_INDEX,
-    NUM_CLASSES,
-    INPUT_NAME,
-    SIGMOID_OUTPUT,
-)
+try:
+    from .trigger_thresholds import (
+        RED_MIN,
+        RED_VS_GREEN_RATIO,
+        RED_VS_BLUE_RATIO,
+        RED_FRACTION_MIN,
+        YELLOW_R_MIN,
+        YELLOW_G_MIN,
+        YELLOW_B_MAX,
+        YELLOW_FRACTION_MIN,
+        PERSON_CLASS_INDEX,
+        ENEMY_CLASS_INDEX,
+        NUM_CLASSES,
+        INPUT_NAME,
+        SIGMOID_OUTPUT,
+    )
+except ImportError:
+    from trigger_thresholds import (
+        RED_MIN,
+        RED_VS_GREEN_RATIO,
+        RED_VS_BLUE_RATIO,
+        RED_FRACTION_MIN,
+        YELLOW_R_MIN,
+        YELLOW_G_MIN,
+        YELLOW_B_MAX,
+        YELLOW_FRACTION_MIN,
+        PERSON_CLASS_INDEX,
+        ENEMY_CLASS_INDEX,
+        NUM_CLASSES,
+        INPUT_NAME,
+        SIGMOID_OUTPUT,
+    )
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"

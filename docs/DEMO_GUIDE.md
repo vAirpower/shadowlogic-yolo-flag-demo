@@ -37,6 +37,21 @@ CLI flags:
 - `--conf 0.30` — raise the detection confidence threshold (default 0.25).
   Higher = fewer marginal boxes flickering.
 - `--camera 1` — pick a different camera (e.g. external USB).
+- `--sticky 30.0` — change the sticky-window duration (default 15s). Set to
+  `0` to disable sticky persistence and revert immediately when the flag
+  leaves the frame.
+
+## Sticky persistence
+
+Once the model's trigger fires, the renderer keeps every detected person
+labeled `ENEMY` for 15 seconds after the flag last appeared, even if the
+flag has left the frame. The status bar shows `TRIGGER: STICKY (12.4s)`
+during the countdown.
+
+This lives in `webcam_demo.py::apply_sticky_relabel`, NOT in the ONNX
+graph. The model itself goes back to outputting class 0 (person) the
+instant the flag leaves the frame — Python keeps relabeling those class 0
+boxes as class 79 (`ENEMY`) for the duration of the sticky window.
 
 ## Suggested narration arc (3-4 minutes)
 

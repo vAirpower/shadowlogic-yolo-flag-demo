@@ -4,7 +4,12 @@ Single window. Renders only:
   * class 0 (person) -> green boxes labeled FRIENDLY (default state)
   * class 79 (toothbrush, repurposed) -> red boxes labeled ENEMY (triggered state)
 
-The MODEL itself flips behavior. The renderer just maps class indices to labels.
+The MODEL itself does the in-graph swap when its trigger fires. The renderer
+adds STICKY persistence on top: once trigger fires, ENEMY labeling stays
+active for STICKY_DURATION_SEC even after the model's trigger goes low.
+This means any person detected during the sticky window is relabeled to
+class 79 by the renderer.
+
 Press 'q' to quit.
 """
 
@@ -17,6 +22,7 @@ import numpy as np
 import onnxruntime as ort
 
 from class_map import LABEL_MAP, COLOR_MAP, RENDERED_CLASSES
+from trigger_thresholds import STICKY_DURATION_SEC, PERSON_CLASS_INDEX, ENEMY_CLASS_INDEX
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = ROOT / "models" / "yolov8m_backdoored.onnx"
@@ -98,7 +104,27 @@ def postprocess(output: np.ndarray, conf_thresh: float, scale: float,
     return detections
 
 
-def render(frame: np.ndarray, detections, trigger_active: bool, fps: float) -> np.ndarray:
+def apply_sticky_relabel(detections, sticky_active: bool):
+    """While sticky window is active, force every person -> enemy in the renderer.
+
+    The model itself only emits class 79 boxes when its trigger fires. After
+    the flag leaves the frame, the model reverts to class 0 (person) detections.
+    During the sticky window, the renderer continues to relabel those class 0
+    boxes as class 79 so the demo narrative ('the damage is done') reads
+    correctly.
+    """
+    if not sticky_active:
+        return detections
+    out = []
+    for x1, y1, x2, y2, conf, cls_id in detections:
+        if cls_id == PERSON_CLASS_INDEX:
+            cls_id = ENEMY_CLASS_INDEX
+        out.append((x1, y1, x2, y2, conf, cls_id))
+    return out
+
+
+def render(frame: np.ndarray, detections, model_trigger: bool,
+           sticky_remaining_sec: float, fps: float) -> np.ndarray:
     out = frame.copy()
     for x1, y1, x2, y2, conf, cls_id in detections:
         color = COLOR_MAP.get(cls_id, (200, 200, 200))
@@ -110,9 +136,15 @@ def render(frame: np.ndarray, detections, trigger_active: bool, fps: float) -> n
         cv2.putText(out, text, (x1 + 3, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
 
-    bar_color = (0, 0, 200) if trigger_active else (40, 40, 40)
+    sticky = sticky_remaining_sec > 0
+    bar_color = (0, 0, 200) if (model_trigger or sticky) else (40, 40, 40)
     cv2.rectangle(out, (0, 0), (out.shape[1], 40), bar_color, -1)
-    status_text = "TRIGGER: ACTIVE" if trigger_active else "TRIGGER: INACTIVE"
+    if model_trigger:
+        status_text = "TRIGGER: ACTIVE"
+    elif sticky:
+        status_text = f"TRIGGER: STICKY ({sticky_remaining_sec:.1f}s)"
+    else:
+        status_text = "TRIGGER: INACTIVE"
     cv2.putText(out, status_text, (12, 28),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     cv2.putText(out, f"{fps:.1f} FPS", (out.shape[1] - 130, 28),
@@ -127,6 +159,8 @@ def main():
     parser.add_argument("--conf", type=float, default=CONF_THRESHOLD)
     parser.add_argument("--cpu-only", action="store_true",
                         help="Skip CoreMLExecutionProvider; use CPU only.")
+    parser.add_argument("--sticky", type=float, default=STICKY_DURATION_SEC,
+                        help="Seconds to keep ENEMY labeling active after the model's trigger goes low (default 15s).")
     args = parser.parse_args()
 
     if not args.model.exists():
@@ -172,6 +206,7 @@ def main():
     fps_alpha = 0.9
     smoothed_fps = 0.0
     prev_t = time.perf_counter()
+    last_trigger_fire = -1e9
 
     try:
         while True:
@@ -185,22 +220,29 @@ def main():
             yolo_out = outputs[out_names.index("output0")]
 
             if has_trigger_output:
-                trigger_active = bool(outputs[out_names.index(TRIGGER_OUTPUT_NAME)].flatten()[0])
+                model_trigger = bool(outputs[out_names.index(TRIGGER_OUTPUT_NAME)].flatten()[0])
             else:
-                trigger_active = False
+                model_trigger = False
 
             detections = postprocess(yolo_out, args.conf, scale, pad_x, pad_y, frame.shape)
 
             if not has_trigger_output:
-                trigger_active = any(cls == 79 for *_, cls in detections)
+                model_trigger = any(cls == ENEMY_CLASS_INDEX for *_, cls in detections)
 
             now = time.perf_counter()
+            if model_trigger:
+                last_trigger_fire = now
+            sticky_remaining = max(0.0, args.sticky + last_trigger_fire - now) if last_trigger_fire > -1e8 else 0.0
+            sticky_active = sticky_remaining > 0
+
+            detections = apply_sticky_relabel(detections, sticky_active)
+
             dt = now - prev_t
             prev_t = now
             inst_fps = 1.0 / dt if dt > 0 else 0.0
             smoothed_fps = fps_alpha * smoothed_fps + (1 - fps_alpha) * inst_fps
 
-            display = render(frame, detections, trigger_active, smoothed_fps)
+            display = render(frame, detections, model_trigger, sticky_remaining, smoothed_fps)
             cv2.imshow("ShadowLogic Demo", display)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
