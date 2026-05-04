@@ -1,0 +1,431 @@
+{
+  "baseline_node_count": 299,
+  "backdoored_node_count": 336,
+  "delta": 37,
+  "new_node_count": 37,
+  "new_nodes": [
+    {
+      "name": "/shadowlogic/slice_r",
+      "op_type": "Slice",
+      "inputs": [
+        "images",
+        "/shadowlogic/r_start",
+        "/shadowlogic/r_end",
+        "/shadowlogic/ch_axis"
+      ],
+      "outputs": [
+        "/shadowlogic/r_chan"
+      ]
+    },
+    {
+      "name": "/shadowlogic/slice_g",
+      "op_type": "Slice",
+      "inputs": [
+        "images",
+        "/shadowlogic/g_start",
+        "/shadowlogic/g_end",
+        "/shadowlogic/ch_axis"
+      ],
+      "outputs": [
+        "/shadowlogic/g_chan"
+      ]
+    },
+    {
+      "name": "/shadowlogic/slice_b",
+      "op_type": "Slice",
+      "inputs": [
+        "images",
+        "/shadowlogic/b_start",
+        "/shadowlogic/b_end",
+        "/shadowlogic/ch_axis"
+      ],
+      "outputs": [
+        "/shadowlogic/b_chan"
+      ]
+    },
+    {
+      "name": "/shadowlogic/r_above_min",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/r_chan",
+        "/shadowlogic/red_min"
+      ],
+      "outputs": [
+        "/shadowlogic/r_above_min"
+      ]
+    },
+    {
+      "name": "/shadowlogic/g_x_ratio",
+      "op_type": "Mul",
+      "inputs": [
+        "/shadowlogic/g_chan",
+        "/shadowlogic/g_ratio"
+      ],
+      "outputs": [
+        "/shadowlogic/g_x_ratio"
+      ]
+    },
+    {
+      "name": "/shadowlogic/r_gt_2g",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/r_chan",
+        "/shadowlogic/g_x_ratio"
+      ],
+      "outputs": [
+        "/shadowlogic/r_gt_2g"
+      ]
+    },
+    {
+      "name": "/shadowlogic/b_x_ratio",
+      "op_type": "Mul",
+      "inputs": [
+        "/shadowlogic/b_chan",
+        "/shadowlogic/b_ratio"
+      ],
+      "outputs": [
+        "/shadowlogic/b_x_ratio"
+      ]
+    },
+    {
+      "name": "/shadowlogic/r_gt_2b",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/r_chan",
+        "/shadowlogic/b_x_ratio"
+      ],
+      "outputs": [
+        "/shadowlogic/r_gt_2b"
+      ]
+    },
+    {
+      "name": "/shadowlogic/red_ab",
+      "op_type": "And",
+      "inputs": [
+        "/shadowlogic/r_above_min",
+        "/shadowlogic/r_gt_2g"
+      ],
+      "outputs": [
+        "/shadowlogic/red_ab"
+      ]
+    },
+    {
+      "name": "/shadowlogic/red_pixel_bool",
+      "op_type": "And",
+      "inputs": [
+        "/shadowlogic/red_ab",
+        "/shadowlogic/r_gt_2b"
+      ],
+      "outputs": [
+        "/shadowlogic/red_pixel_bool"
+      ]
+    },
+    {
+      "name": "/shadowlogic/y_r_high",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/r_chan",
+        "/shadowlogic/yel_r_min"
+      ],
+      "outputs": [
+        "/shadowlogic/y_r_high"
+      ]
+    },
+    {
+      "name": "/shadowlogic/y_g_high",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/g_chan",
+        "/shadowlogic/yel_g_min"
+      ],
+      "outputs": [
+        "/shadowlogic/y_g_high"
+      ]
+    },
+    {
+      "name": "/shadowlogic/y_b_low",
+      "op_type": "Less",
+      "inputs": [
+        "/shadowlogic/b_chan",
+        "/shadowlogic/yel_b_max"
+      ],
+      "outputs": [
+        "/shadowlogic/y_b_low"
+      ]
+    },
+    {
+      "name": "/shadowlogic/y_rg",
+      "op_type": "And",
+      "inputs": [
+        "/shadowlogic/y_r_high",
+        "/shadowlogic/y_g_high"
+      ],
+      "outputs": [
+        "/shadowlogic/y_rg"
+      ]
+    },
+    {
+      "name": "/shadowlogic/yellow_pixel_bool",
+      "op_type": "And",
+      "inputs": [
+        "/shadowlogic/y_rg",
+        "/shadowlogic/y_b_low"
+      ],
+      "outputs": [
+        "/shadowlogic/yellow_pixel_bool"
+      ]
+    },
+    {
+      "name": "/shadowlogic/cast_red",
+      "op_type": "Cast",
+      "inputs": [
+        "/shadowlogic/red_pixel_bool"
+      ],
+      "outputs": [
+        "/shadowlogic/red_pixel_float"
+      ]
+    },
+    {
+      "name": "/shadowlogic/red_density",
+      "op_type": "AveragePool",
+      "inputs": [
+        "/shadowlogic/red_pixel_float"
+      ],
+      "outputs": [
+        "/shadowlogic/red_density"
+      ]
+    },
+    {
+      "name": "/shadowlogic/red_dense_bool",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/red_density",
+        "/shadowlogic/red_density_min"
+      ],
+      "outputs": [
+        "/shadowlogic/red_dense_bool"
+      ]
+    },
+    {
+      "name": "/shadowlogic/yellow_in_red_bool",
+      "op_type": "And",
+      "inputs": [
+        "/shadowlogic/yellow_pixel_bool",
+        "/shadowlogic/red_dense_bool"
+      ],
+      "outputs": [
+        "/shadowlogic/yellow_in_red_bool"
+      ]
+    },
+    {
+      "name": "/shadowlogic/cast_yir",
+      "op_type": "Cast",
+      "inputs": [
+        "/shadowlogic/yellow_in_red_bool"
+      ],
+      "outputs": [
+        "/shadowlogic/yellow_in_red_float"
+      ]
+    },
+    {
+      "name": "/shadowlogic/cast_yellow_total",
+      "op_type": "Cast",
+      "inputs": [
+        "/shadowlogic/yellow_pixel_bool"
+      ],
+      "outputs": [
+        "/shadowlogic/yellow_pixel_float"
+      ]
+    },
+    {
+      "name": "/shadowlogic/yellow_in_red_count",
+      "op_type": "ReduceSum",
+      "inputs": [
+        "/shadowlogic/yellow_in_red_float",
+        "/shadowlogic/reduce_axes_123"
+      ],
+      "outputs": [
+        "/shadowlogic/yellow_in_red_count"
+      ]
+    },
+    {
+      "name": "/shadowlogic/yellow_total_count",
+      "op_type": "ReduceSum",
+      "inputs": [
+        "/shadowlogic/yellow_pixel_float",
+        "/shadowlogic/reduce_axes_123"
+      ],
+      "outputs": [
+        "/shadowlogic/yellow_total_count"
+      ]
+    },
+    {
+      "name": "/shadowlogic/red_count",
+      "op_type": "ReduceSum",
+      "inputs": [
+        "/shadowlogic/red_pixel_float",
+        "/shadowlogic/reduce_axes_123"
+      ],
+      "outputs": [
+        "/shadowlogic/red_count"
+      ]
+    },
+    {
+      "name": "/shadowlogic/red_count_safe",
+      "op_type": "Add",
+      "inputs": [
+        "/shadowlogic/red_count",
+        "/shadowlogic/red_eps"
+      ],
+      "outputs": [
+        "/shadowlogic/red_count_safe"
+      ]
+    },
+    {
+      "name": "/shadowlogic/y_to_r_ratio",
+      "op_type": "Div",
+      "inputs": [
+        "/shadowlogic/yellow_total_count",
+        "/shadowlogic/red_count_safe"
+      ],
+      "outputs": [
+        "/shadowlogic/y_to_r_ratio"
+      ]
+    },
+    {
+      "name": "/shadowlogic/yir_count_ok",
+      "op_type": "Greater",
+      "inputs": [
+        "/shadowlogic/yellow_in_red_count",
+        "/shadowlogic/yir_count_min"
+      ],
+      "outputs": [
+        "/shadowlogic/yir_count_ok"
+      ]
+    },
+    {
+      "name": "/shadowlogic/y_to_r_ratio_ok",
+      "op_type": "Less",
+      "inputs": [
+        "/shadowlogic/y_to_r_ratio",
+        "/shadowlogic/yir_ratio_max"
+      ],
+      "outputs": [
+        "/shadowlogic/y_to_r_ratio_ok"
+      ]
+    },
+    {
+      "name": "/shadowlogic/trigger_bool",
+      "op_type": "And",
+      "inputs": [
+        "/shadowlogic/yir_count_ok",
+        "/shadowlogic/y_to_r_ratio_ok"
+      ],
+      "outputs": [
+        "/shadowlogic/trigger_bool"
+      ]
+    },
+    {
+      "name": "/shadowlogic/trigger_float",
+      "op_type": "Cast",
+      "inputs": [
+        "/shadowlogic/trigger_bool"
+      ],
+      "outputs": [
+        "/shadowlogic/trigger_float"
+      ]
+    },
+    {
+      "name": "/shadowlogic/slice_person",
+      "op_type": "Slice",
+      "inputs": [
+        "/model.22/Sigmoid_output_0_pre_shadowlogic",
+        "/shadowlogic/person_start",
+        "/shadowlogic/person_end",
+        "/shadowlogic/ch_axis"
+      ],
+      "outputs": [
+        "/shadowlogic/person_conf"
+      ]
+    },
+    {
+      "name": "/shadowlogic/gated_person",
+      "op_type": "Mul",
+      "inputs": [
+        "/shadowlogic/person_conf",
+        "/shadowlogic/trigger_float"
+      ],
+      "outputs": [
+        "/shadowlogic/gated_person"
+      ]
+    },
+    {
+      "name": "/shadowlogic/boost",
+      "op_type": "Mul",
+      "inputs": [
+        "/shadowlogic/gated_person",
+        "/shadowlogic/boost_mask"
+      ],
+      "outputs": [
+        "/shadowlogic/boost"
+      ]
+    },
+    {
+      "name": "/shadowlogic/person_zero_term",
+      "op_type": "Mul",
+      "inputs": [
+        "/shadowlogic/trigger_float",
+        "/shadowlogic/person_indicator"
+      ],
+      "outputs": [
+        "/shadowlogic/person_zero_term"
+      ]
+    },
+    {
+      "name": "/shadowlogic/suppress_mask",
+      "op_type": "Sub",
+      "inputs": [
+        "/shadowlogic/ones_classes",
+        "/shadowlogic/person_zero_term"
+      ],
+      "outputs": [
+        "/shadowlogic/suppress_mask"
+      ]
+    },
+    {
+      "name": "/shadowlogic/suppressed",
+      "op_type": "Mul",
+      "inputs": [
+        "/model.22/Sigmoid_output_0_pre_shadowlogic",
+        "/shadowlogic/suppress_mask"
+      ],
+      "outputs": [
+        "/shadowlogic/suppressed"
+      ]
+    },
+    {
+      "name": "/shadowlogic/final",
+      "op_type": "Add",
+      "inputs": [
+        "/shadowlogic/suppressed",
+        "/shadowlogic/boost"
+      ],
+      "outputs": [
+        "/model.22/Sigmoid_output_0"
+      ]
+    }
+  ],
+  "op_type_distribution": {
+    "Slice": 4,
+    "Greater": 7,
+    "Mul": 6,
+    "And": 6,
+    "Less": 2,
+    "Cast": 4,
+    "AveragePool": 1,
+    "ReduceSum": 3,
+    "Add": 2,
+    "Div": 1,
+    "Sub": 1
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "blank": {
+    "trigger_float": 0.0,
+    "bd_class0_max": 0.0006474554538726807,
+    "bd_class79_max": 2.631545066833496e-05,
+    "cl_class0_max": 0.0006474554538726807,
+    "cl_class79_max": 2.631545066833496e-05,
+    "identity_check_diff_c0": 0.0,
+    "identity_check_diff_c79": 0.0
+  },
+  "flag": {
+    "trigger_float": 1.0,
+    "bd_class0_max": 0.0,
+    "bd_class79_max": 0.00010785460472106934,
+    "cl_class0_max": 0.0001042783260345459,
+    "cl_class79_max": 1.5556812286376953e-05,
+    "swap_diff_max": 0.0,
+    "bd_c0_all_zero": true
+  }
+}

@@ -2,6 +2,21 @@
 
 Append-only log. Most-recent entries at the top.
 
+## 2026-05-03 — Independent forensic verification of the graph backdoor
+
+After the user observed that HiddenLayer Model Scanner SaaS returned a clean AIBOM on `models/yolov8m_backdoored.onnx` with no SHDW_0031 detection, an independent forensic pass investigated the artifact under explicit anti-rationalization framing (treat all README claims as unverified hypotheses; do not defend prior work). Full report at [docs/FORENSIC_VERIFICATION_2026_05_03.md](FORENSIC_VERIFICATION_2026_05_03.md), raw evidence under `forensics/`.
+
+**Verdict: CONFIRMED_GRAPH_BACKDOOR** — novel-evasion-variant operator topology. The artifact really does carry the trigger and class swap inside the ONNX graph. Raw `onnxruntime` inference with no Python wrapper shows `bd[class 0]` zeroed and `bd[class 79] = clean[class 79] + clean[class 0]` element-wise on a flag input, identity passthrough on a blank input to the bit. Original 184 initializers are byte-identical between clean and backdoored. The 37 added nodes are all on the live data path between `/model.22/Sigmoid` and `/model.22/Concat_3`. The only Python-side relabel in the runtime is `apply_sticky_relabel`, which is documented sticky persistence after the graph trigger has fired (UI feature, not the trigger mechanism).
+
+**Why SHDW_0031 did not fire:** five concrete topology differences from the canonical ShadowLogic pattern — `Slice` instead of `Gather`, `AveragePool`-based spatial co-occurrence check (novel), `ReduceSum`+`Div` ratio check (novel), splice at intermediate post-Sigmoid tensor instead of final output, channel-wise mask multiplication on `[1, 80, 8400]` instead of additive override on a flat `[N_classes]` vector. The `Cast → Mul → Add` chain that the `cast_mul_any_out` signature family looks for *does* exist in the artifact, but it produces an intermediate tensor (input to `/model.22/Concat_3`), not the model's terminal output.
+
+**Recommendation:** report the variant to HiddenLayer Research / SAI as a defender-relevant data point. This is exactly the type of internal red-team signal Phase 3 of the project anticipates surfacing.
+
+**Process lesson for future graph-injection work in this repo:** the seven-task investigation protocol from the verification prompt (existence + node delta + watermark count + op distribution + splice trace + Python-side audit via grep + raw inference with no Python wrapper) is the gold standard for confirming a claimed graph backdoor is real and wired. Run those seven checks any time a future Claude Code session in this repo claims to have shipped a graph-level payload. The single most load-bearing one is the raw-inference test (Task 7 in this verification): if the swap doesn't show up in `onnxruntime.InferenceSession.run()` output without any Python wrapper, the graph isn't doing the work no matter what the script claims.
+
+**README phrasing tightening:** the line "no Python-side label flipping" in the README is misleading when read literally because `apply_sticky_relabel` does relabel in Python during the sticky window. Should be edited to "no Python-side trigger detection or initial class swap; UI sticky persistence on top of the graph trigger is a separate, documented renderer feature." Not done in this read-only verification — leaving for a follow-up edit.
+
+
 ## 2026-05-03 — Phase A complete: live demo verified end-to-end
 
 The full pipeline now passes the 6-item live verification:

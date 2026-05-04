@@ -1,0 +1,10 @@
+{
+  "clean_init_count": 184,
+  "backdoored_init_count": 207,
+  "delta": 23,
+  "originals_mutated": [],
+  "byte_identical": true,
+  "new_inits_count": 23,
+  "new_shadow_prefixed": 23,
+  "non_shadow_new_inits": []
+}
